@@ -1,0 +1,11 @@
+{
+    "version": "0",
+    "id": "abc123",
+    "detail-type": "EmailReceived",
+    "source": "email-system",
+    "time": "2024-05-06T00:00:00Z",
+    "detail": {
+      "emailId": "test-id-123"
+    }
+  }
+  

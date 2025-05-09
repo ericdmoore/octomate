@@ -1,0 +1,14 @@
+{
+    "Records": [
+      {
+        "ses": {
+          "mail": {
+            "messageId": "test-id-123",
+            "source": "test@example.com",
+            "destination": ["user@yourdomain.com"]
+          }
+        }
+      }
+    ]
+  }
+  

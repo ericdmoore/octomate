@@ -5,7 +5,13 @@ Octomate Architecture Overview
 
 ### Principals:
 - Loosely coupled compoents via an Event Log (Event Bridge)
-- pay-for-usage only (not for time)
+- pay-for-usage only (not for time
+- Modular – each plugin stands alone
+- Observable – pluginMgr can track partial or failed execution
+- User-centric – failure is surfaced but doesn’t cause cascading failure
+- Open-core friendly – easily supports user-installed plugins of varying reliability
+
+
 
 
 #### Events Lifecycle

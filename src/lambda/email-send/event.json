@@ -1,0 +1,8 @@
+{
+    "to": "someone@example.com",
+    "from": "you@yourdomain.com",
+    "subject": "Test Email",
+    "bodyText": "Hello there!",
+    "bodyHtml": "<p>Hello there!</p>"
+  }
+  
