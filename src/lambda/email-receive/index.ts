@@ -1,11 +1,11 @@
 import type { Handler, SNSEvent, Context } from "aws-lambda";
-import { GetObjectCommand, S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { Readable } from "stream";
 import { octomateEventBridge } from '../../lib/events/eventBridge';
 
 
-const { BUCKET_NAME, TABLE_NAME, EVENT_BUS_NAME } = process.env;
+const { BUCKET_NAME, TABLE_NAME, _EVENT_BUS_NAME } = process.env;
 
 const s3 = new S3Client({});
 const ddb = new DynamoDBClient({});
@@ -59,7 +59,7 @@ interface SnsSesNotification {
  *  
  * 
  */
-export const handler: Handler<SNSEvent> = async (event, ctx: Context) => {
+export const handler: Handler<SNSEvent> = async (event, _ctx: Context) => {
 
   const timestamp = new Date().toISOString();
   const messageStr = event.Records[0].Sns.Message 
@@ -98,8 +98,7 @@ export const handler: Handler<SNSEvent> = async (event, ctx: Context) => {
   await octomateEventBridge({ region: '', creds:{key:'',secret:''}}).inbound.emailReceived({
     from: mailData.mail.source, 
     to: [...mailData.mail.destination.split(',')],
-    timestamp: timestamp, 
-    messageId: emailId,
+    emailId: emailId,
     rawS3Url: `s3://${BUCKET_NAME}/emails/${emailId}.txt`,
   })
 

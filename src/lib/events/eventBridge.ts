@@ -1,3 +1,6 @@
+import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+import { UnRequire } from '../../lib/events/util-types'
+
 /**
  * 
  * Email Event Lifecycle
@@ -112,61 +115,62 @@
  */
 
 //#region interfaces
-export interface PluginStartData{
+
+export type PluginStateCommon<State = 'string'> = {
     pluginName: string;
     emailId: string;
+    timestamp: number; // epochSec
+    status: State;
+}
+
+export interface PluginStartData extends PluginStateCommon<'Start'> {
     // config is for Mode-Level-Config
     config?: Record<string, any>;
     // Data Source Config will be stamped on the email in the `MetaDataDB`
 }
 
-export interface PluginStopData{
-    pluginName: string;
-    emailId: string;
-    success: boolean;
-    stoppedAt?: string;
-    result?: string;
-    errorMessage?: string;
+export interface PluginFailedData extends PluginStateCommon<'Failed'> {
+    reason?: string
+    errorMessages?: string[];
 }
 
-export interface PluginFinishedData{
-    pluginName: string;
-    emailId: string;
-    success: boolean;
-    completedAt: string;
+
+export interface PluginFinishedData extends PluginStateCommon<'Finished'> {
     result?: string
+    warning?: string;
     outputSummary?: string;
-    errorMessage?: string;
 }
 
-export interface EmailReceivedData {
-    messageId: string;
-    from: string;
+export interface EmailStateCommmon {
+    timestamp: number;  // epochSec
+    emailId: string;
     to: string[];
+    from: string;
     rawS3Url: string;
-    timestamp: string;
 }
 
-export interface EmailTaggedPluginManifestData {
-    emailId: string;
+export interface EmailReceivedData extends EmailStateCommmon {}
+
+export interface EmailTaggedPluginManifestData extends EmailStateCommmon {
     pluginManifest: string[];
 }
 
-export interface EmailProcessingStartData {
-    emailId: string;
-    pluginManifest: string[];
+export interface EmailProcessingStartData extends EmailStateCommmon {
+    pluginManifestWithConfig: Record<string, unknown>;
 }
 
-export interface EmailProcessingStopData {
-    emailId: string;
+export interface EmailProcessingStopData extends EmailStateCommmon {
     completedPlugins: string[];
     durationMs?: number;
 }
 
 export interface EmailProcessingFinishedData {
-    emailId: string;
-    manifest: string[];
+    // 100% Finish
+    // Less Than 100% Finish; a few fails
+    // 100% Stopped
     status: 'complete' | 'partial' | 'failed';
+    completedPlugins: string[];
+    erroredPlugins: string[];
 }
 
 export interface EmailStateChangedData {
@@ -277,15 +281,17 @@ export type EmailEventPayload =
 
 //#endregion interfaces
 
-import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+
 
 export const octomateEventBridge = (i: {region: string, creds:{key: string, secret:string}})=>{
     const evb = new EventBridgeClient({
         region:i.region, credentials: { accessKeyId: i.creds.key, secretAccessKey: i.creds.secret}
     });
 
-    const pluginStartData = (data:PluginStartData)=>{
-        const dataS = JSON.stringify(data)
+    const pluginStartData = (data:UnRequire<'timestamp', PluginStartData>)=>{
+        const dataS = JSON.stringify({
+            timestamp: Math.floor(Date.now() / 1000),
+            ...data})
         if(dataS.length < 256_000, "PluginStartData is too long") throw new Error("PluginStartData is too long")
         
         return {
@@ -294,57 +300,94 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             Detail: dataS
         }
     }
-    const pluginStopData = (data:PluginStopData)=>{
+    const pluginStopData = (data:UnRequire<'timestamp',PluginFailedData>)=>{
 
-        const dataS = JSON.stringify(data)
+        const dataS = JSON.stringify({
+            timestamp: Math.floor(Date.now() / 1000),
+            ...data})
         if(dataS.length < 256_000, "PluginStartData is too long") throw new Error("PluginStartData is too long")
         
         return {
             Source: `octomate.plugin.${data.pluginName}`,
             DetailType: `plugin/${data.pluginName}/stop`,
             Detail: dataS
-        }}
-    const pluginStart = async (data:PluginStartData)=>{
+        }
+    }
+    const pluginFinishedData = (data:UnRequire<'timestamp', PluginFinishedData>)=>{
+
+        const dataS = JSON.stringify(data)
+        if(dataS.length < 256_000, "PluginStartData is too long") throw new Error("PluginStartData is too long")
+            
+        return {
+            Source: `octomate.plugin.${data.pluginName}`,
+            DetailType: `plugin/${data.pluginName}/stop`,
+            Detail: dataS
+        }
+    }
+    const pluginStart = async (data:UnRequire<'timestamp',PluginStartData>)=>{
         return evb.send(new PutEventsCommand({
-            Entries: [pluginStartData(data)],
+            Entries: [pluginStartData({
+                timestamp: Math.floor(Date.now() / 1000),
+                ...data
+            })],
         }));
     }
-    const pluginStop =  async (data:PluginStopData)=>{
+    const pluginStop =  async (data:UnRequire<'timestamp',PluginFailedData>)=>{
         return evb.send(new PutEventsCommand({
-            Entries: [pluginStopData(data)],
+            Entries: [pluginStopData({
+                timestamp: Math.floor(Date.now() / 1000),
+                ...data
+            })],
+        }));
+    }
+    const pluginFinished =  async (data: UnRequire<'timestamp',PluginFinishedData>)=>{
+        return evb.send(new PutEventsCommand({
+            Entries: [pluginFinishedData({
+                timestamp: Math.floor(Date.now() / 1000), 
+                ...data
+            })],
         }));
     }
     
     const plugins = {
         start: pluginStart, 
         stop: pluginStop, 
+        finish: pluginFinished,
         startData: pluginStartData, 
-        stopData: pluginStopData
+        stopData: pluginStopData,
+        finishData: pluginFinishedData
     };
     
     const inbound = {
-            emailReceived: async (data:EmailReceivedData)=>{
+            emailReceived: async (data:UnRequire<'timestamp',EmailReceivedData>)=>{
                 return evb.send(new PutEventsCommand({
                     Entries: [{
                             Source: 'octomate.inbound.email',
                             DetailType: 'emailReceived',
-                            Detail: JSON.stringify(data),
+                            Detail: JSON.stringify({
+                                timestamp: Math.floor(Date.now() / 1000),
+                                ...data
+                            }),
                     }],
                 }));
             },
             // data includes manifest
-            emailTaggedPluginManifest: async (data:EmailTaggedPluginManifestData)=>{
+            emailTaggedPluginManifest: async (data:UnRequire<'timestamp',EmailTaggedPluginManifestData>)=>{
                 const params = {
                     Entries: [{
                             Source: 'octomate.inbound.email',
                             DetailType: 'emailTaggedPluginManifest',
-                            Detail: JSON.stringify(data),
+                            Detail: JSON.stringify({
+                                timestamp: Math.floor(Date.now() / 1000),
+                                ...data
+                            }),
                     }],
                 };
                 return evb.send(new PutEventsCommand(params));
             },
             // include events for plugins
-            emailProcessingStart: async (data:EmailProcessingStartData, pluginList: PluginStartData[] )=>{        
+            emailProcessingStart: async (data:UnRequire<'timestamp',EmailProcessingStartData>, pluginList: UnRequire<'timestamp',PluginStartData>[] )=>{        
+                
                 if(pluginList.length > 10) throw new Error("PluginList is too long")
                 // OR we should use a generator and call the Send function multiple timess
         
@@ -352,7 +395,10 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
                     Entries: [{
                         Source: 'octomate.inbound.email',
                         DetailType: 'emailProcessingStart',
-                        Detail: JSON.stringify(data),
+                        Detail: JSON.stringify({
+                            timestamp: Math.floor(Date.now() / 1000),
+                            ...data
+                        }),
                     },
                     {   
                         // future event - wake up in 2 minutes to make sure its all done
@@ -364,7 +410,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
                 ]};
                 return evb.send(new PutEventsCommand(params));
             },
-            emailProcessingFinished: async (data:unknown)=>{
+            emailProcessingFinished: async (data:EmailProcessingFinishedData)=>{
                 const params = {
                     Entries: [{
                             Source: 'octomate.inbound.email',
@@ -374,7 +420,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
                 };
                 return evb.send(new PutEventsCommand(params));
             },
-            emailProcessingStop: async (data:unknown)=>{
+            emailProcessingStop: async (data:EmailProcessingStopData)=>{
                 const params = {
                     Entries: [{
                             Source: 'octomate.inbound.email',
@@ -384,7 +430,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
                 };
                 return evb.send(new PutEventsCommand(params));
             },
-            emailStateChanged: async (data:unknown)=>{
+            emailStateChanged: async (data:EmailStateChangedData)=>{
                 const params = {
                     Entries: [{
                             Source: 'octomate.inbound.email',
@@ -394,7 +440,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
                 };
                 return evb.send(new PutEventsCommand(params));
             },
-            emailDeleted: async (data:unknown)=>{
+            emailDeleted: async (data:EmailDeletedData)=>{
                 const params = {
                     Entries: [{
                             Source: 'octomate.inbound.email',
@@ -404,7 +450,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
                 };
                 return evb.send(new PutEventsCommand(params));
             },
-            emailScheduledVacuum: async (data:unknown)=>{
+            emailScheduledVacuum: async (data:EmailScheduledVacuum)=>{
                 const params = {
                     Entries: [{
                             Source: 'octomate.inbound.email',
@@ -417,7 +463,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
         }
         const general = {
             // Standard Flow: S => I => A 
-            emailStored: async (data:unknown) => {
+            emailStored: async (data:EmailStoredData) => {
                 const params = {
                     Entries: [{
                             Source: 'octomate.general.email',
@@ -427,7 +473,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
                 };
                 return evb.send(new PutEventsCommand(params));
             },
-            emailIndexed: async (data:unknown)=>{
+            emailIndexed: async (data:EmailIndexedData)=>{
                 const params = {
                     Entries: [{
                             Source: 'octomate.general.email',
@@ -437,7 +483,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
                 };
                 return evb.send(new PutEventsCommand(params));
             },
-            emailAvailable: async (data:unknown)=>{
+            emailAvailable: async (data:EmailAvailableData)=>{
                 const params = {
                     Entries: [{
                             Source: 'octomate.inbound.email',
@@ -449,7 +495,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             },
         }
         const outbound = {
-            emailDraftStarted: async (data:unknown)=>{
+            emailDraftStarted: async (data:EmailDraftStartedData)=>{
                 const params = {
                     Entries: [{
                             Source: 'octomate.outbound.email',
@@ -459,7 +505,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
                 };
                 return evb.send(new PutEventsCommand(params));
             },
-            emailDraftSaved: async (data:unknown)=>{
+            emailDraftSaved: async (data:EmailDraftSavedData)=>{
                 const params = {
                     Entries: [{
                         Source: 'octomate.outbound.email',

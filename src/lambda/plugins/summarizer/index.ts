@@ -23,7 +23,7 @@ async function streamToString(stream: Readable): Promise<string> {
   return Buffer.concat(chunks).toString('utf-8');
 }
 
-export const handler: Handler<EventBridgeEvent<PluginStartData>> = async (event) => {
+export const handler: Handler<EventBridgeEvent<'plugin/summarizer/start', PluginStartData>> = async (event) => {
   const detail = event.detail;
   const emailId = detail.emailId as string;
 
@@ -57,11 +57,12 @@ export const handler: Handler<EventBridgeEvent<PluginStartData>> = async (event)
 
 
 
-  await evb.plugins.stop({
+  await evb.plugins.finish({
     pluginName:'summarizer', 
+    status: 'Finished',
     emailId, 
-    success: true, 
-    result
+    result,
+    timestamp: Math.floor(Date.now() / 1000)
   })
 
   // Emit plugin finished event

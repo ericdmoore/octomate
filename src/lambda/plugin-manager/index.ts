@@ -1,9 +1,11 @@
 import { DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
+import {Handler, EventBridgeEvent} from 'aws-lambda';
+import { EmailTaggedPluginManifestData } from '../../lib/events/eventBridge';
 
 const ddb = new DynamoDBClient({});
 const { PLUGIN_REGISTRY_TABLE } = process.env;
 
-export const handler = async (event: any) => {
+export const handler: Handler<EventBridgeEvent<'emailTaggedPluginManifest', EmailTaggedPluginManifestData>> = async (event: any) => {
   const detail = event.detail;
   const eventType = event['detail-type'];
 

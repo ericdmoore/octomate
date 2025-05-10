@@ -18,8 +18,8 @@ export const handler: Handler<EventBridgeEvent<string, string>> = async (event: 
     Key: { emailId: { S: emailId } },
   }));
 
-  const manifest = JSON.parse(record.Item?.pluginManifest?.S ?? '[]');
-  const pluginStatus = JSON.parse(record.Item?.pluginStatus?.S ?? '{}');
+  const manifest = JSON.parse(record.Item?.pluginManifest?.S ?? '[]') as string[]
+  const pluginStatus = JSON.parse(record.Item?.pluginStatus?.S ?? '{}') as Record<string, { status: string, reason?: string, failedAt?: string }>;
 
   const completedPlugins = Object.keys(pluginStatus).filter(
     k => pluginStatus[k]?.status === 'done' || pluginStatus[k]?.status === 'failed'
