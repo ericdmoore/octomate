@@ -9,7 +9,7 @@ import { Readable } from 'stream';
 const dynamo = new DynamoDBClient({});
 const eventBridge = new EventBridgeClient({});
 const s3 = new S3Client({});
-const evb = octomateEventBridge({region:'', creds:{key:'', secret:''}})
+const evb = octomateEventBridge({region:'', eventBusName:'default', creds:{key:'', secret:''}})
 
 const TABLE_NAME = process.env.TABLE_NAME!;
 const EVENT_BUS_NAME = process.env.EVENT_BUS_NAME!;

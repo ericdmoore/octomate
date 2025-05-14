@@ -1,5 +1,5 @@
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
-import { UnRequire } from '../../lib/events/util-types'
+import { UnRequire } from '../../lib/events/util-types' 
 
 /**
  * 
@@ -283,9 +283,13 @@ export type EmailEventPayload =
 
 
 
-export const octomateEventBridge = (i: {region: string, creds:{key: string, secret:string}})=>{
+export const octomateEventBridge = (i: {region: string, eventBusName:string, creds:{key: string, secret:string}})=>{
     const evb = new EventBridgeClient({
-        region:i.region, credentials: { accessKeyId: i.creds.key, secretAccessKey: i.creds.secret}
+        region:i.region, 
+        credentials: { 
+            accessKeyId: i.creds.key, 
+            secretAccessKey: i.creds.secret
+        }
     });
 
     const pluginStartData = (data:UnRequire<'timestamp', PluginStartData>)=>{
@@ -295,6 +299,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
         if(dataS.length < 256_000, "PluginStartData is too long") throw new Error("PluginStartData is too long")
         
         return {
+            EventBusName: i.eventBusName,
             Source: `octomate.plugin.${data.pluginName}`,
             DetailType: `plugin/${data.pluginName}/start`,
             Detail: dataS
@@ -308,6 +313,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
         if(dataS.length < 256_000, "PluginStartData is too long") throw new Error("PluginStartData is too long")
         
         return {
+            EventBusName: i.eventBusName,
             Source: `octomate.plugin.${data.pluginName}`,
             DetailType: `plugin/${data.pluginName}/stop`,
             Detail: dataS
@@ -319,6 +325,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
         if(dataS.length < 256_000, "PluginStartData is too long") throw new Error("PluginStartData is too long")
             
         return {
+            EventBusName: i.eventBusName,
             Source: `octomate.plugin.${data.pluginName}`,
             DetailType: `plugin/${data.pluginName}/stop`,
             Detail: dataS
@@ -326,7 +333,8 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
     }
     const pluginStart = async (data:UnRequire<'timestamp',PluginStartData>)=>{
         return evb.send(new PutEventsCommand({
-            Entries: [pluginStartData({
+            Entries: [
+                pluginStartData({
                 timestamp: Math.floor(Date.now() / 1000),
                 ...data
             })],
@@ -362,6 +370,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailReceived: async (data:UnRequire<'timestamp',EmailReceivedData>)=>{
                 return evb.send(new PutEventsCommand({
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.inbound.email',
                             DetailType: 'emailReceived',
                             Detail: JSON.stringify({
@@ -375,6 +384,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailTaggedPluginManifest: async (data:UnRequire<'timestamp',EmailTaggedPluginManifestData>)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.inbound.email',
                             DetailType: 'emailTaggedPluginManifest',
                             Detail: JSON.stringify({
@@ -393,6 +403,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
         
                 const params = {
                     Entries: [{
+                        EventBusName: i.eventBusName,
                         Source: 'octomate.inbound.email',
                         DetailType: 'emailProcessingStart',
                         Detail: JSON.stringify({
@@ -402,6 +413,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
                     },
                     {   
                         // future event - wake up in 2 minutes to make sure its all done
+                        EventBusName: i.eventBusName,
                         DetailType: 'plugin/checkStatus',
                         Detail: JSON.stringify({ emailId: data.emailId }),
                         EventTime: new Date(Date.now() + 2 * 60 * 1000) // 2 minutes from now
@@ -413,6 +425,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailProcessingFinished: async (data:EmailProcessingFinishedData)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.inbound.email',
                             DetailType: 'emailProcessingFinished',
                             Detail: JSON.stringify(data),
@@ -423,6 +436,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailProcessingStop: async (data:EmailProcessingStopData)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.inbound.email',
                             DetailType: 'emailProcessingStop',
                             Detail: JSON.stringify(data),
@@ -433,6 +447,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailStateChanged: async (data:EmailStateChangedData)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.inbound.email',
                             DetailType: 'emailStateChanged',
                             Detail: JSON.stringify(data),
@@ -443,6 +458,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailDeleted: async (data:EmailDeletedData)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.inbound.email',
                             DetailType: 'emailDeleted',
                             Detail: JSON.stringify(data),
@@ -453,6 +469,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailScheduledVacuum: async (data:EmailScheduledVacuum)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.inbound.email',
                             DetailType: 'emailScheduledVacuum',
                             Detail: JSON.stringify(data),
@@ -466,6 +483,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailStored: async (data:EmailStoredData) => {
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.general.email',
                             DetailType: 'emailStored',
                             Detail: JSON.stringify(data),
@@ -476,6 +494,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailIndexed: async (data:EmailIndexedData)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.general.email',
                             DetailType: 'emailIndexed',
                             Detail: JSON.stringify(data),
@@ -486,6 +505,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailAvailable: async (data:EmailAvailableData)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.inbound.email',
                             DetailType: 'emailAvailable',
                             Detail: JSON.stringify(data),
@@ -498,6 +518,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailDraftStarted: async (data:EmailDraftStartedData)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.outbound.email',
                             DetailType: 'emailDraftStarted',
                             Detail: JSON.stringify(data),
@@ -508,6 +529,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailDraftSaved: async (data:EmailDraftSavedData)=>{
                 const params = {
                     Entries: [{
+                        EventBusName: i.eventBusName,
                         Source: 'octomate.outbound.email',
                         DetailType: 'emailDraftSaved',
                         Detail: JSON.stringify(data),
@@ -519,6 +541,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailTaggedPluginManifest: async (data:EmailTaggedPluginManifestData)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.outbound.email',
                             DetailType: 'emailTaggedPluginManifest',
                             Detail: JSON.stringify(data),
@@ -529,6 +552,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailDraftProcessingStart: async ( data:EmailDraftProcessingStartData, pluginList: PluginStartData[])=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.outbound.email',
                             DetailType: 'emailDraftProcessingStart',
                             Detail: JSON.stringify(data),
@@ -540,6 +564,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailDraftProcessingStop: async (data:EmailDraftProcessingStopData)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.outbound.email',
                             DetailType: 'emailDraftProcessingStop',
                             Detail: JSON.stringify(data),
@@ -550,6 +575,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailDraftGenerated: async (data:EmailDraftGeneratedData)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.outbound.email',
                             DetailType: 'emailDraftGenerated',
                             Detail: JSON.stringify(data),
@@ -560,6 +586,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailDraftGenerationsApproved: async (data:EmailDraftGenerationsApprovedData) => {
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.outbound.email',
                             DetailType: 'emailDraftGenerationsApproved',
                             Detail: JSON.stringify(data),
@@ -570,6 +597,7 @@ export const octomateEventBridge = (i: {region: string, creds:{key: string, secr
             emailSent: async (data:EmailSentData)=>{
                 const params = {
                     Entries: [{
+                            EventBusName: i.eventBusName,
                             Source: 'octomate.outbound.email',
                             DetailType: 'emailSent',
                             Detail: JSON.stringify(data),
